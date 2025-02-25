@@ -10,32 +10,68 @@ export enum Author {
 export enum Topic {
   CELINE_DION = 13,
   THE_HISTORY_OF_SPIDER_MAN = 17,
-  TODO = 19,
+  TOM_BRADY = 19,
   SHOHEI_OHTANI = 23,
 }
 
-export function encodeMUID(author: Author, topic: Topic): string {
-  const product = author * topic
+export enum HumanizedStatus {
+  HUMANIZED = 3,
+  NOT_HUMANIZED = 5
+}
+
+export function encodeMUID(author: Author, topic: Topic, humanized_status: HumanizedStatus): string {
+  const product = author * topic * humanized_status;
   return product.toString(16).padStart(4, "0").toUpperCase()
 }
 
-export function decodeMUID(muid: string): { author: Author; topic: Topic } | false {
-  const product = Number.parseInt(muid, 16)
-
-  // Check all possible author values
-  for (const author of Object.values(Author)) {
-    // Skip if not a number (enum contains both keys and values)
-    if (typeof author !== "number") continue
-
-    // If product is divisible by author, check if quotient is a valid topic
-    if (product % author === 0) {
-      const topic = product / author
-      if (Object.values(Topic).includes(topic)) {
-        return { author, topic: topic as Topic }
-      }
-    }
-  }
-
-  return false
+function enumVals(enumObj: object): Set<number> {
+  return new Set(Object.values(enumObj).filter(x => typeof x === "number"));
 }
 
+
+class PrimeDecoder<T extends Record<string, number>> {
+  private product: number;
+  private fields: Partial<T> | false = {};
+
+  constructor(product: number) {
+    this.product = product;
+  }
+
+  addField(key: string, enumObj: object): this {
+    if (this.fields === false) {
+      return this;
+    }
+
+    const vals = enumVals(enumObj);
+
+    for (const val of vals) {
+      if (this.product % val === 0) {
+        (this.fields as Record<string, number>)[key] = val;
+        this.product /= val;
+
+        return this;
+      }
+    }
+    this.fields = false;
+    return this;
+  }
+
+  decode(): T | false {
+    return this.fields === false ? false : (this.fields as T);
+  }
+}
+
+export function decodeMUID(muid: string): { author: Author; topic: Topic; humanized_status: HumanizedStatus } | false {
+  const product = Number.parseInt(muid, 16);
+
+  const decoder = new PrimeDecoder<{
+    author: Author;
+    topic: Topic;
+    humanized_status: HumanizedStatus;
+  }>(product)
+    .addField("author", Author)
+    .addField("topic", Topic)
+    .addField("humanized_status", HumanizedStatus);
+
+  return decoder.decode();
+}
